@@ -14,6 +14,7 @@ export const mainNavigation: NavGroup[] = [
       { label: "회사소개", en: "About", href: "/company/about" },
       { label: "비전 · 핵심가치", en: "Vision", href: "/company/vision" },
       { label: "연혁", en: "History", href: "/company/history" },
+      { label: "인증 · 특허", en: "Certification", href: "/company/certifications" },
       { label: "오시는 길", en: "Location", href: "/company/location" },
     ],
   },

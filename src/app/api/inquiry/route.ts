@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 export type InquiryPayload = {
   name: string;
@@ -20,8 +21,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * 사업 문의 접수
- * TODO: 실제 전달 경로(메일 발송·CRM·Slack 등)를 정한 뒤 INQUIRY_WEBHOOK_URL 환경변수로 연결하세요.
- * 전달 경로가 없는 Production 환경에서는 접수하지 않고 503을 반환해, 문의가 유실되지 않도록 합니다.
+ * Supabase `company_inquiries` 테이블에 저장하고, INQUIRY_WEBHOOK_URL이 있으면 알림용으로도 전달합니다.
+ * 저장소·전달 경로가 모두 없는 Production 환경에서는 접수하지 않고 503을 반환해, 문의가 유실되지 않도록 합니다.
  */
 export async function POST(request: Request) {
   let body: InquiryPayload;
@@ -40,6 +41,34 @@ export async function POST(request: Request) {
   }
 
   const webhook = process.env.INQUIRY_WEBHOOK_URL;
+
+  if (supabase) {
+    const { error } = await supabase.from("company_inquiries").insert({
+      name: body.name.trim(),
+      affiliation: body.affiliation.trim(),
+      position: body.position?.trim() || null,
+      phone: body.phone?.trim() || null,
+      email: body.email.trim(),
+      type: body.type.trim(),
+      subject: body.subject.trim(),
+      message: body.message.trim(),
+      agreed: body.agree,
+    });
+    if (error) {
+      console.error("[inquiry] Supabase 저장 실패", error.message);
+      return NextResponse.json({ ok: false, message: "접수 중 문제가 발생했습니다." }, { status: 502 });
+    }
+    // 이미 저장된 문의이므로 알림 전달 실패는 접수 실패로 보지 않습니다.
+    if (webhook) {
+      await fetch(webhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, website: undefined, receivedAt: new Date().toISOString() }),
+      }).catch((e) => console.error("[inquiry] Webhook 전달 실패", e));
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   if (webhook) {
     const res = await fetch(webhook, {
       method: "POST",

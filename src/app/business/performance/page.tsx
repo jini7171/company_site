@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { InquiryCTA } from "@/components/subpage/InquiryCTA";
 import { Placeholder } from "@/components/subpage/Placeholder";
@@ -5,12 +6,15 @@ import { SubNav } from "@/components/subpage/SubNav";
 import { SubpageHero } from "@/components/subpage/SubpageHero";
 import { SubSection } from "@/components/subpage/SubSection";
 import { Metric } from "@/components/ui/Metric";
-import { businessAreas, businessPerformance } from "@/content/business";
+import { getProjects, projectCategories } from "@/content/projects";
 import { companyMetrics } from "@/content/site";
 import { technologies } from "@/content/technology";
 import { pageMetadata } from "@/lib/seo";
 
 const PATH = "/business/performance";
+
+// 관리자 페이지에서 등록한 프로젝트(Supabase)를 60초마다 다시 가져옵니다.
+export const revalidate = 60;
 
 export const metadata = pageMetadata({
   title: "사업실적",
@@ -18,8 +22,10 @@ export const metadata = pageMetadata({
   path: PATH,
 });
 
-export default function PerformancePage() {
-  const allRegions = Array.from(new Set(businessPerformance.flatMap((p) => p.regions)));
+const formatMonth = (date?: string) => (date ? date.slice(0, 7).replace("-", ".") : "");
+
+export default async function PerformancePage() {
+  const projects = await getProjects();
 
   return (
     <>
@@ -27,7 +33,7 @@ export default function PerformancePage() {
         href={PATH}
         eyebrow="BUSINESS PERFORMANCE"
         title="사업실적"
-        description="2000년부터 이어온 프로젝트 경험을 사업 분야, 지역, 역량 기준으로 소개합니다."
+        description="2000년부터 이어온 프로젝트 경험을 사업 분야별로 소개합니다."
       />
       <SubNav href={PATH} />
 
@@ -39,53 +45,67 @@ export default function PerformancePage() {
         </div>
       </SubSection>
 
-      <SubSection index="02" eyebrow="BY BUSINESS" title="사업 분야별 수행 실적" tone="subtle">
+      <SubSection index="02" eyebrow="BY BUSINESS" title="분야별 수행 실적" tone="subtle">
         <ul className="border-t border-ink">
-          {businessAreas.map((area) => {
-            const count = businessPerformance.find((p) => p.businessSlug === area.slug)?.projectCount ?? null;
+          {projectCategories.map((c, i) => {
+            const count = projects.filter((p) => p.category === c.label).length;
+            const row = (
+              <>
+                <span className="font-en text-[13px] font-semibold text-muted">{String(i + 1).padStart(2, "0")}</span>
+                <span className="text-[18px] font-semibold tracking-[-0.02em]">{c.label}</span>
+                <span className="text-right">
+                  {count > 0 ? (
+                    <span className="font-en text-[22px] font-semibold tabular-nums">{count.toLocaleString("en-US")}</span>
+                  ) : (
+                    <span className="text-[14px] text-muted">집계 중</span>
+                  )}
+                </span>
+              </>
+            );
+            const cls = "grid min-h-[72px] grid-cols-[2.5rem_1fr_auto] items-center gap-4 py-4 md:grid-cols-[4rem_1fr_10rem] md:px-4";
             return (
-              <li key={area.slug} className="border-b border-line">
-                <Link
-                  href={`/business/${area.slug}`}
-                  className="group grid min-h-[72px] grid-cols-[2.5rem_1fr_auto] items-center gap-4 py-4 transition-colors hover:bg-white md:grid-cols-[4rem_1fr_1fr_10rem] md:px-4"
-                >
-                  <span className="font-en text-[13px] font-semibold text-muted">{area.index}</span>
-                  <span className="text-[18px] font-semibold tracking-[-0.02em]">{area.title}</span>
-                  <span className="hidden font-en text-[13px] uppercase tracking-[0.08em] text-muted md:block">{area.en}</span>
-                  <span className="text-right">
-                    {count !== null ? (
-                      <span className="font-en text-[22px] font-semibold tabular-nums">{count.toLocaleString("en-US")}</span>
-                    ) : (
-                      <span className="text-[14px] text-muted">집계 중</span>
-                    )}
-                  </span>
-                </Link>
+              <li key={c.label} className="border-b border-line">
+                {"businessSlug" in c ? (
+                  <Link href={`/business/${c.businessSlug}`} className={`${cls} transition-colors hover:bg-white`}>
+                    {row}
+                  </Link>
+                ) : (
+                  <div className={cls}>{row}</div>
+                )}
               </li>
             );
           })}
         </ul>
       </SubSection>
 
-      <SubSection index="03" eyebrow="BY REGION" title="지역별 수행 현황">
-        {allRegions.length > 0 ? (
-          <ul className="flex flex-wrap gap-2">
-            {allRegions.map((r) => (
-              <li key={r} className="border border-line px-4 py-2 text-[15px]">
-                {r}
+      <SubSection index="03" eyebrow="PROJECTS" title="주요 수행 프로젝트">
+        {projects.length > 0 ? (
+          <ul className="grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((p) => (
+              <li key={p.id} className="flex flex-col">
+                <div className="relative aspect-[16/10] overflow-hidden border border-line bg-subtle">
+                  <Image src={p.imageUrl} alt={p.title} fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className="object-cover" />
+                </div>
+                <p className="mt-5 text-[13px] font-semibold text-brand">{p.category}</p>
+                <h3 className="mt-2 text-[19px] font-bold leading-[1.4] tracking-[-0.02em]">{p.title}</h3>
+                {p.content && <p className="mt-3 line-clamp-3 whitespace-pre-line text-[15px] leading-[1.7] text-muted">{p.content}</p>}
+                {(p.startDate || p.endDate) && (
+                  <p className="mt-4 border-t border-line pt-4 text-[13px] text-ink/70">
+                    <span className="mr-2 text-muted">구축기간</span>
+                    <span className="font-en tabular-nums">
+                      {formatMonth(p.startDate)} – {formatMonth(p.endDate)}
+                    </span>
+                  </p>
+                )}
               </li>
             ))}
           </ul>
         ) : (
-          <Placeholder>지역별 수행 현황을 정리하고 있습니다.</Placeholder>
+          <Placeholder>주요 수행 프로젝트를 정리하고 있습니다.</Placeholder>
         )}
       </SubSection>
 
-      <SubSection index="04" eyebrow="BY PROJECT TYPE" title="프로젝트 유형" tone="subtle">
-        {/* TODO: 구축·운영·유지보수·컨설팅 등 확정된 유형별 실적 입력 */}
-        <Placeholder>프로젝트 유형별 실적을 정리하고 있습니다.</Placeholder>
-      </SubSection>
-
-      <SubSection index="05" eyebrow="CAPABILITY AREAS" title="실적을 만든 핵심 역량" tone="night">
+      <SubSection index="04" eyebrow="CAPABILITY AREAS" title="실적을 만든 핵심 역량" tone="night">
         <ul className="grid gap-px border border-white/10 bg-white/10 md:grid-cols-3">
           {technologies.map((t) => (
             <li key={t.slug}>

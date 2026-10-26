@@ -44,10 +44,49 @@ export type BusinessArea = {
 
 export type BusinessPerformance = {
   businessSlug: string;
-  /** TODO: 확정된 수행 건수 입력. null이면 "집계 중"으로 표시 */
+  /** 공개된 프로젝트 수. null이면 "집계 중"으로 표시 */
   projectCount: number | null;
-  /** TODO: 확정된 주요 수행 지역 */
-  regions: string[];
+  /** 가장 최근에 작성된 프로젝트명 */
+  latestTitle?: string;
+};
+
+/** 사업실적 프로젝트 — Supabase `company_projects` */
+export type Project = {
+  id: number;
+  /** 프로젝트 분류 (content/projects.ts의 projectCategories) */
+  category: string;
+  title: string;
+  content?: string;
+  imageUrl: string;
+  /** 구축기간 YYYY-MM-DD */
+  startDate?: string;
+  endDate?: string;
+  /** 작성일 YYYY-MM-DD */
+  writtenDate?: string;
+};
+
+/** 보도자료 — Supabase `company_press` (작성자는 관리용이라 사이트에 내보내지 않음) */
+export type PressRelease = {
+  id: number;
+  title: string;
+  /** 출처 — 기사 원문 링크 */
+  sourceUrl: string;
+  imageUrl: string;
+  content: string;
+  /** 작성일 YYYY-MM-DD */
+  writtenDate: string;
+};
+
+/** 인증/특허 — Supabase `company_certifications` (작성자는 관리용이라 사이트에 내보내지 않음) */
+export type Certification = {
+  id: number;
+  /** 분류 이름 (company_certification_categories) */
+  category: string;
+  title: string;
+  content?: string;
+  imageUrl: string;
+  /** 작성일 YYYY-MM-DD */
+  writtenDate: string;
 };
 
 export type Technology = {
@@ -119,7 +158,7 @@ export type SolutionDetail = {
 
 export type CoreValue = { en: string; title: string; text: string };
 
-export type BoardCategory = "news" | "press";
+export type BoardCategory = "news";
 
 /** 게시판 게시물 — CMS/API 연동 시 이 형태로 응답을 맞추세요. */
 export type BoardPost = {

@@ -9,8 +9,9 @@ import { RelatedCards } from "@/components/subpage/RelatedCards";
 import { SubNav } from "@/components/subpage/SubNav";
 import { SubpageHero } from "@/components/subpage/SubpageHero";
 import { SubSection } from "@/components/subpage/SubSection";
-import { businessAreas, businessPerformance, getBusinessArea } from "@/content/business";
+import { businessAreas, getBusinessArea } from "@/content/business";
 import { businessDetails } from "@/content/business-detail";
+import { getBusinessPerformance } from "@/content/projects";
 import { solutionFullName, solutions } from "@/content/solutions";
 import { technologies } from "@/content/technology";
 import { pageMetadata } from "@/lib/seo";
@@ -18,6 +19,7 @@ import { pageMetadata } from "@/lib/seo";
 type Props = { params: Promise<{ slug: string }> };
 
 export const dynamicParams = false;
+export const revalidate = 60;
 
 export function generateStaticParams() {
   return businessAreas.map((area) => ({ slug: area.slug }));
@@ -37,7 +39,7 @@ export default async function BusinessDetailPage({ params }: Props) {
   if (!area || !detail) notFound();
 
   const path = `/business/${slug}`;
-  const performance = businessPerformance.find((p) => p.businessSlug === slug);
+  const performance = (await getBusinessPerformance()).find((p) => p.businessSlug === slug);
   const relatedTech = technologies.filter((t) => detail.relatedTechnologies.includes(t.slug));
   const relatedSolutions = solutions.filter((s) => detail.relatedSolutions.includes(s.slug));
 
@@ -94,13 +96,9 @@ export default async function BusinessDetailPage({ params }: Props) {
             </dd>
           </div>
           <div className="border-b border-line py-6">
-            <dt className="font-en text-eyebrow font-semibold uppercase text-muted">Regions</dt>
+            <dt className="font-en text-eyebrow font-semibold uppercase text-muted">Latest Project</dt>
             <dd className="mt-3 text-[17px]">
-              {performance && performance.regions.length > 0 ? (
-                performance.regions.join(", ")
-              ) : (
-                <span className="text-muted">수행 지역 정보 준비 중</span>
-              )}
+              {performance?.latestTitle ?? <span className="text-muted">프로젝트 정보 준비 중</span>}
             </dd>
           </div>
         </dl>

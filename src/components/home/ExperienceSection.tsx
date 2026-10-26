@@ -2,10 +2,13 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Metric } from "@/components/ui/Metric";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { businessAreas, businessPerformance } from "@/content/business";
+import { businessAreas } from "@/content/business";
+import { getBusinessPerformance } from "@/content/projects";
 import { companyMetrics } from "@/content/site";
 
-export function ExperienceSection() {
+export async function ExperienceSection() {
+  const businessPerformance = await getBusinessPerformance();
+
   return (
     <section id="experience" aria-labelledby="experience-title" className="bg-subtle py-24 md:py-28 lg:flex lg:min-h-[calc(100svh-var(--header-h))] lg:flex-col lg:justify-center lg:py-12">
       <div className="container max-w-content">
@@ -27,7 +30,7 @@ export function ExperienceSection() {
           ))}
         </div>
 
-        {/* Business Performance — 실적 수치는 확정 후 content/business.ts에서 입력 */}
+        {/* Business Performance — 관리자 페이지에서 등록한 프로젝트 수로 집계 */}
         <div className="mt-24 md:mt-28 lg:mt-10" data-reveal>
           <div className="flex flex-col gap-4 border-b border-ink pb-5 sm:flex-row sm:items-end sm:justify-between">
             <div>

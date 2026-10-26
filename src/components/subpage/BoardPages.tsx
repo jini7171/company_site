@@ -7,7 +7,7 @@ import { SubNav } from "./SubNav";
 import { SubpageHero } from "./SubpageHero";
 
 /**
- * ESE 소식·보도자료가 같은 게시판 구조를 쓰도록 목록/상세 화면을 한 곳에서 만듭니다.
+ * ESE 소식 게시판의 목록/상세 화면을 만듭니다. (보도자료는 이미지 갤러리라 content/press.ts로 분리)
  * 각 route의 page.tsx는 category만 넘깁니다.
  */
 
@@ -15,7 +15,6 @@ export type BoardSearchParams = Promise<{ page?: string; q?: string }>;
 
 const HERO: Record<BoardCategory, { eyebrow: string; description: string }> = {
   news: { eyebrow: "NEWS", description: "ESE의 사업과 기술, 사람들의 이야기를 전합니다." },
-  press: { eyebrow: "PRESS", description: "언론에 소개된 ESE의 사업과 기술 소식입니다." },
 };
 
 export async function BoardListPage({ category, searchParams }: { category: BoardCategory; searchParams: BoardSearchParams }) {
@@ -29,7 +28,7 @@ export async function BoardListPage({ category, searchParams }: { category: Boar
       <section className="py-16 md:py-24">
         <div className="container max-w-content">
           <BoardList
-            posts={getBoardPosts(category)}
+            posts={await getBoardPosts(category)}
             basePath={meta.path}
             emptyText={meta.emptyText}
             page={Number(page) || 1}
@@ -41,13 +40,13 @@ export async function BoardListPage({ category, searchParams }: { category: Boar
   );
 }
 
-export function boardStaticParams(category: BoardCategory) {
-  return getBoardPosts(category).map((p) => ({ id: p.id }));
+export async function boardStaticParams(category: BoardCategory) {
+  return (await getBoardPosts(category)).map((p) => ({ id: p.id }));
 }
 
 export async function BoardDetailPage({ category, params }: { category: BoardCategory; params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const found = getBoardPost(category, id);
+  const found = await getBoardPost(category, id);
   if (!found) notFound();
   const meta = boardMeta[category];
 

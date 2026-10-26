@@ -6,7 +6,7 @@ import type { BusinessDetail } from "./types";
  * TODO: 아래 문구는 사업 분야의 일반적인 범위를 기준으로 작성한 **초안**입니다.
  * - 실제 수행 범위·서비스 명칭은 담당 부서 검토 후 수정하세요.
  * - relatedSolutions는 제품명 기준으로 임시 연결한 값입니다. 공식 매핑으로 교체하세요.
- * - 수행 건수·지역 등 실적 수치는 business.ts의 businessPerformance에서 관리합니다.
+ * - 수행 건수·지역 등 실적 수치는 관리자 페이지에서 등록한 프로젝트(content/projects.ts)로 계산합니다.
  */
 export const businessDetails: Record<string, BusinessDetail> = {
   "smart-city": {

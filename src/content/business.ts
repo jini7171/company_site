@@ -1,4 +1,4 @@
-import type { BusinessArea, BusinessPerformance } from "./types";
+import type { BusinessArea } from "./types";
 
 /**
  * 배경 사진 — Unsplash 무료 License 이미지 (images.unsplash.com Hotlink)
@@ -61,14 +61,6 @@ export const businessAreas: BusinessArea[] = [
   },
 ];
 
-/**
- * 사업 분야별 실적
- * TODO: 확정된 실적 수치로 교체. 임의의 숫자를 입력하지 마세요.
- */
-export const businessPerformance: BusinessPerformance[] = businessAreas.map((area) => ({
-  businessSlug: area.slug,
-  projectCount: null,
-  regions: [],
-}));
+// 사업 분야별 실적(건수·최근 프로젝트)은 content/projects.ts의 getBusinessPerformance()에서 Supabase 데이터로 계산합니다.
 
 export const getBusinessArea = (slug: string) => businessAreas.find((area) => area.slug === slug);

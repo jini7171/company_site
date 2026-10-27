@@ -4,7 +4,9 @@ import { deletePost, savePost } from "@/app/admin/actions";
 import type { BoardCategory } from "@/content/types";
 import { requireAdmin } from "@/lib/admin";
 import { boardAdmin } from "@/lib/admin-config";
+import { applySort, fetchSortMode } from "@/lib/sorting";
 import { ConfirmButton } from "./ConfirmButton";
+import { MoveButtons, SortControls } from "./SortControls";
 import { Badge, Card, Check, EmptyRow, Field, PageHeader, ResultBanner, inputCls, primaryBtn, secondaryBtn, td, th } from "./ui";
 
 type PostRow = {
@@ -24,13 +26,18 @@ export async function PostManager({ category, searchParams }: { category: BoardC
   const { db } = await requireAdmin();
   const meta = boardAdmin[category];
 
-  const { data } = await db
-    .from("company_board_posts")
-    .select("id, title, date, body, pinned, published")
-    .eq("category", category)
-    .order("pinned", { ascending: false })
-    .order("date", { ascending: false });
+  const mode = await fetchSortMode(db, category);
+  const { data } = await applySort(
+    db.from("company_board_posts").select("id, title, date, body, pinned, published").eq("category", category).order("pinned", { ascending: false }),
+    category,
+    mode,
+  );
   const posts = (data ?? []) as PostRow[];
+  // 화살표는 상단 고정 글끼리, 일반 글끼리만 움직이므로 그룹의 처음·끝을 구합니다.
+  const isEdge = (p: PostRow, edge: "first" | "last") => {
+    const group = posts.filter((x) => x.pinned === p.pinned);
+    return (edge === "first" ? group[0] : group.at(-1))?.id === p.id;
+  };
   const editing = edit ? posts.find((p) => p.id === edit) : undefined;
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
 
@@ -47,6 +54,7 @@ export async function PostManager({ category, searchParams }: { category: BoardC
         }
       />
       <ResultBanner msg={msg} />
+      <SortControls board={category} mode={mode} note="상단 고정 글은 정렬 방식과 관계없이 항상 맨 위에 보입니다." />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_440px]">
         <Card title={`목록 (${posts.length})`}>
@@ -54,6 +62,7 @@ export async function PostManager({ category, searchParams }: { category: BoardC
             <table className="w-full">
               <thead>
                 <tr>
+                  {mode === "manual" && <th className={th}>순서</th>}
                   <th className={th}>제목</th>
                   <th className={th}>게시일</th>
                   <th className={th}>상태</th>
@@ -66,6 +75,11 @@ export async function PostManager({ category, searchParams }: { category: BoardC
                 {posts.length ? (
                   posts.map((p) => (
                     <tr key={p.id} className={p.id === edit ? "bg-brand-50" : undefined}>
+                      {mode === "manual" && (
+                        <td className={`${td} whitespace-nowrap`}>
+                          <MoveButtons board={category} id={p.id} title={p.title} isFirst={isEdge(p, "first")} isLast={isEdge(p, "last")} />
+                        </td>
+                      )}
                       <td className={td}>
                         <Link href={`?edit=${p.id}`} className="font-medium hover:text-brand">
                           {p.pinned && <Pin aria-label="상단 고정" className="mr-1 inline h-3.5 w-3.5 text-brand" />}
@@ -88,7 +102,7 @@ export async function PostManager({ category, searchParams }: { category: BoardC
                     </tr>
                   ))
                 ) : (
-                  <EmptyRow colSpan={4}>등록된 글이 없습니다. '새 글 작성'에서 첫 글을 등록해 보세요.</EmptyRow>
+                  <EmptyRow colSpan={mode === "manual" ? 5 : 4}>등록된 글이 없습니다. '새 글 작성'에서 첫 글을 등록해 보세요.</EmptyRow>
                 )}
               </tbody>
             </table>

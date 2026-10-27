@@ -3,8 +3,10 @@ import Link from "next/link";
 import { deletePress, savePress } from "@/app/admin/actions";
 import { ConfirmButton } from "@/components/admin/ConfirmButton";
 import { Badge, Card, Check, Field, ImageField, PageHeader, ResultBanner, inputCls, primaryBtn, secondaryBtn } from "@/components/admin/ui";
+import { MoveButtons, SortControls } from "@/components/admin/SortControls";
 import { pressImageUrl } from "@/content/press";
 import { requireAdmin } from "@/lib/admin";
+import { applySort, fetchSortMode } from "@/lib/sorting";
 
 type PressRow = {
   id: number;
@@ -26,7 +28,8 @@ export default async function AdminPressPage({ searchParams }: Props) {
   const { edit, msg } = await searchParams;
   const { db } = await requireAdmin();
 
-  const { data } = await db.from("company_press").select(COLUMNS).order("written_date", { ascending: false }).order("created_at", { ascending: false });
+  const mode = await fetchSortMode(db, "press");
+  const { data } = await applySort(db.from("company_press").select(COLUMNS), "press", mode);
   const items = (data ?? []) as PressRow[];
   const editId = Number(edit) || null;
   const editing = editId ? items.find((p) => p.id === editId) : undefined;
@@ -45,13 +48,20 @@ export default async function AdminPressPage({ searchParams }: Props) {
         }
       />
       <ResultBanner msg={msg} />
+      <SortControls board="press" mode={mode} />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_440px]">
         <Card title={`목록 (${items.length})`}>
           {items.length ? (
             <ul className="grid gap-x-4 gap-y-6 sm:grid-cols-2 2xl:grid-cols-3">
-              {items.map((p) => (
+              {items.map((p, i) => (
                 <li key={p.id} className={`border p-2 ${p.id === editId ? "border-brand bg-brand-50" : "border-transparent"}`}>
+                  {mode === "manual" && (
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="font-en text-[13px] font-semibold tabular-nums text-muted">{i + 1}</span>
+                      <MoveButtons board="press" id={p.id} title={p.title} isFirst={i === 0} isLast={i === items.length - 1} />
+                    </div>
+                  )}
                   <Link href={`?edit=${p.id}`} className="group block">
                     {/* eslint-disable-next-line @next/next/no-img-element -- 관리자 갤러리 썸네일 */}
                     <img

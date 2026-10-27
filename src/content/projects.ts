@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { applySort, getSortMode } from "@/lib/sorting";
 import { publicImageUrl } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 import type { BusinessPerformance, Project } from "./types";
@@ -37,14 +38,15 @@ type ProjectRow = {
   written_date: string | null;
 };
 
-/** 작성일 최신순 */
+/** 관리자가 고른 정렬 방식(최신순·오래된순·직접 지정) */
 export const getProjects = cache(async (): Promise<Project[]> => {
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from("company_projects")
-    .select("id, category, title, content, image_path, start_date, end_date, written_date")
-    .order("written_date", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  const mode = await getSortMode("projects");
+  const { data, error } = await applySort(
+    supabase.from("company_projects").select("id, category, title, content, image_path, start_date, end_date, written_date"),
+    "projects",
+    mode,
+  );
   if (error) {
     console.error("[projects] 목록 조회 실패", error.message);
     return [];

@@ -8,7 +8,8 @@ import { PRESS_IMAGE_BUCKET } from "@/content/press";
 import { PROJECT_IMAGE_BUCKET } from "@/content/projects";
 import type { BoardCategory } from "@/content/types";
 import { ADMIN_COOKIE, ADMIN_SESSION_HOURS, requireAdmin } from "@/lib/admin";
-import { boardAdmin, inquiryStatus } from "@/lib/admin-config";
+import { boardAdmin, inquiryStatus, sortBoardAdminPath } from "@/lib/admin-config";
+import { SORT_BOARDS, type SortBoard, applySort, isSortMode } from "@/lib/sorting";
 import { IMAGE_MAX_BYTES, IMAGE_TYPES } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 
@@ -77,9 +78,12 @@ export async function savePost(form: FormData) {
 
   const { error } = id
     ? await db.from("company_board_posts").update(values).eq("id", id)
-    : await db
-        .from("company_board_posts")
-        .insert({ ...values, id: `${values.date.replaceAll("-", "")}-${Date.now().toString(36).slice(-5)}`, category });
+    : await db.from("company_board_posts").insert({
+        ...values,
+        id: `${values.date.replaceAll("-", "")}-${Date.now().toString(36).slice(-5)}`,
+        category,
+        sort_order: await topSortOrder(db, "company_board_posts"),
+      });
   if (error) {
     console.error("[admin] 게시물 저장 실패", error.message);
     return done(path, "error");
@@ -102,9 +106,81 @@ export async function deletePost(form: FormData) {
   done(path, "deleted");
 }
 
-/* ───────── 이미지 게시물 공통 (사업실적 · 인증/특허 · 보도자료) ───────── */
+/* ───────── 정렬 (공지사항 · 보도자료 · 사업실적 · 인증/특허) ───────── */
 
 type AdminDb = Awaited<ReturnType<typeof requireAdmin>>["db"];
+
+/** 새 글은 '직접 지정' 순서에서 맨 앞에 오도록 현재 가장 작은 순서보다 1 작게 줍니다. */
+async function topSortOrder(db: AdminDb, table: string) {
+  const { data } = await db.from(table).select("sort_order").order("sort_order").limit(1).maybeSingle();
+  return ((data?.sort_order as number | undefined) ?? 1) - 1;
+}
+
+function revalidateBoard(board: SortBoard) {
+  if (board === "news") {
+    revalidatePath("/news");
+    revalidatePath("/news/[id]", "page");
+  } else if (board === "press") revalidatePress();
+  else if (board === "projects") revalidateProjects();
+  else revalidatePath("/company/certifications");
+  revalidatePath(sortBoardAdminPath[board]);
+}
+
+const asSortBoard = (v: string): SortBoard | null => (v in SORT_BOARDS ? (v as SortBoard) : null);
+
+/** 게시판 정렬 방식 변경 (최신순 / 오래된순 / 직접 지정) */
+export async function setSortMode(form: FormData) {
+  const { db } = await requireAdmin();
+  const board = asSortBoard(text(form, "board"));
+  const mode = text(form, "mode");
+  if (!board || !isSortMode(mode)) return done("/admin/dashboard", "error");
+
+  const { error } = await db
+    .from("company_board_settings")
+    .update({ sort_mode: mode, updated_at: new Date().toISOString() })
+    .eq("board", board);
+  if (error) return done(sortBoardAdminPath[board], "error");
+
+  revalidateBoard(board);
+  done(sortBoardAdminPath[board], "saved");
+}
+
+/**
+ * '직접 지정' 순서에서 글 하나를 위·아래·맨 위·맨 아래로 옮깁니다.
+ * 공지사항은 상단 고정 글끼리, 일반 글끼리만 자리를 바꿉니다.
+ */
+export async function moveItem(form: FormData) {
+  const { db } = await requireAdmin();
+  const board = asSortBoard(text(form, "board"));
+  const id = text(form, "id");
+  const dir = text(form, "dir");
+  if (!board || !["top", "up", "down", "bottom"].includes(dir)) return;
+
+  const base = db.from(SORT_BOARDS[board].table).select(board === "news" ? "id, pinned" : "id");
+  const query = board === "news" ? base.eq("category", "news").order("pinned", { ascending: false }) : base;
+  const { data } = await applySort(query, board, "manual");
+  const rows = ((data ?? []) as unknown as { id: string | number; pinned?: boolean }[]).map((r) => ({ id: String(r.id), group: !!r.pinned }));
+
+  const current = rows.find((r) => r.id === id);
+  if (!current) return;
+  const group = rows.filter((r) => r.group === current.group).map((r) => r.id);
+  const from = group.indexOf(id);
+  const to = dir === "top" ? 0 : dir === "bottom" ? group.length - 1 : dir === "up" ? from - 1 : from + 1;
+  if (to < 0 || to >= group.length || to === from) return;
+  group.splice(to, 0, ...group.splice(from, 1));
+
+  // 같은 그룹 자리에 새 순서를 채워 전체 순서를 만듭니다.
+  let next = 0;
+  const ids = rows.map((r) => (r.group === current.group ? group[next++] : r.id));
+  const { error } = await db.rpc("company_set_order", { p_board: board, p_ids: ids });
+  if (error) {
+    console.error("[admin] 순서 변경 실패", error.message);
+    return done(sortBoardAdminPath[board], "error");
+  }
+  revalidateBoard(board);
+}
+
+/* ───────── 이미지 게시물 공통 (사업실적 · 인증/특허 · 보도자료) ───────── */
 
 /**
  * Form의 `image` 파일을 Storage에 올리고 행을 저장합니다.
@@ -134,7 +210,9 @@ async function saveWithImage(
 
   const oldPath = id ? ((await db.from(table).select("image_path").eq("id", id).maybeSingle()).data?.image_path as string | undefined) : undefined;
   const row = { ...values, updated_at: new Date().toISOString(), ...(newPath && { image_path: newPath }) };
-  const { error } = id ? await db.from(table).update(row).eq("id", id) : await db.from(table).insert(row);
+  const { error } = id
+    ? await db.from(table).update(row).eq("id", id)
+    : await db.from(table).insert({ ...row, sort_order: await topSortOrder(db, table) });
   if (error) {
     console.error(`[admin] ${table} 저장 실패`, error.message);
     if (newPath) await storage.remove([newPath]);

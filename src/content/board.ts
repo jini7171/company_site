@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { applySort, getSortMode } from "@/lib/sorting";
 import { supabase } from "@/lib/supabase";
 import type { BoardCategory, BoardPost } from "./types";
 
@@ -38,16 +39,19 @@ const toPost = (row: BoardRow): BoardPost => ({
   attachments: row.attachments?.length ? row.attachments : undefined,
 });
 
-/** 고정글 먼저, 이후 최신순 */
+/** 상단 고정 글 먼저, 이후 관리자가 고른 정렬 방식(최신순·오래된순·직접 지정) */
 export const getBoardPosts = cache(async (category: BoardCategory): Promise<BoardPost[]> => {
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from("company_board_posts")
-    .select("id, category, title, date, body, pinned, source_url, attachments")
-    .eq("category", category)
-    .order("pinned", { ascending: false })
-    .order("date", { ascending: false })
-    .order("created_at", { ascending: false });
+  const mode = await getSortMode(category);
+  const { data, error } = await applySort(
+    supabase
+      .from("company_board_posts")
+      .select("id, category, title, date, body, pinned, source_url, attachments")
+      .eq("category", category)
+      .order("pinned", { ascending: false }),
+    category,
+    mode,
+  );
   if (error) {
     console.error(`[board] ${category} 목록 조회 실패`, error.message);
     return [];

@@ -3,8 +3,10 @@ import Link from "next/link";
 import { deleteCertification, deleteCertificationCategory, saveCertification, saveCertificationCategory } from "@/app/admin/actions";
 import { ConfirmButton } from "@/components/admin/ConfirmButton";
 import { Badge, Card, Check, EmptyRow, Field, ImageField, PageHeader, ResultBanner, inputCls, primaryBtn, secondaryBtn, td, th } from "@/components/admin/ui";
+import { MoveButtons, SortControls } from "@/components/admin/SortControls";
 import { certificationImageUrl } from "@/content/certifications";
 import { requireAdmin } from "@/lib/admin";
+import { applySort, fetchSortMode } from "@/lib/sorting";
 
 type CertificationRow = {
   id: number;
@@ -25,7 +27,10 @@ export default async function AdminCertificationsPage({ searchParams }: Props) {
   const { edit, msg, category } = await searchParams;
   const { db } = await requireAdmin();
 
-  let query = db.from("company_certifications").select(COLUMNS).order("written_date", { ascending: false }).order("created_at", { ascending: false });
+  const mode = await fetchSortMode(db, "certifications");
+  // 순서 화살표는 '전체' 목록에서만 보여줍니다. (분류 필터 중에는 이웃 글이 달라 헷갈리므로)
+  const canMove = mode === "manual" && !category;
+  let query = applySort(db.from("company_certifications").select(COLUMNS), "certifications", mode);
   if (category) query = query.eq("category", category);
   const [{ data }, { data: categoryRows }, { data: usage }] = await Promise.all([
     query,
@@ -58,6 +63,7 @@ export default async function AdminCertificationsPage({ searchParams }: Props) {
         }
       />
       <ResultBanner msg={msg} />
+      <SortControls board="certifications" mode={mode} note={mode === "manual" ? "순서는 '전체' 목록에서 바꿀 수 있고, 분류 탭에서도 같은 순서로 보입니다." : undefined} />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_440px]">
         <Card
@@ -79,6 +85,7 @@ export default async function AdminCertificationsPage({ searchParams }: Props) {
             <table className="w-full">
               <thead>
                 <tr>
+                  {canMove && <th className={th}>순서</th>}
                   <th className={th}>이미지</th>
                   <th className={th}>제목</th>
                   <th className={th}>작성일</th>
@@ -91,8 +98,13 @@ export default async function AdminCertificationsPage({ searchParams }: Props) {
               </thead>
               <tbody>
                 {items.length ? (
-                  items.map((c) => (
+                  items.map((c, i) => (
                     <tr key={c.id} className={c.id === editId ? "bg-brand-50" : undefined}>
+                      {canMove && (
+                        <td className={`${td} whitespace-nowrap`}>
+                          <MoveButtons board="certifications" id={c.id} title={c.title} isFirst={i === 0} isLast={i === items.length - 1} />
+                        </td>
+                      )}
                       <td className={td}>
                         {/* eslint-disable-next-line @next/next/no-img-element -- 관리자 목록 썸네일 */}
                         <img src={certificationImageUrl(c.image_path)} alt="" className="h-14 w-11 border border-line bg-subtle object-contain" />
@@ -122,7 +134,7 @@ export default async function AdminCertificationsPage({ searchParams }: Props) {
                     </tr>
                   ))
                 ) : (
-                  <EmptyRow colSpan={6}>등록된 인증/특허가 없습니다.</EmptyRow>
+                  <EmptyRow colSpan={canMove ? 7 : 6}>등록된 인증/특허가 없습니다.</EmptyRow>
                 )}
               </tbody>
             </table>

@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { applySort, getSortMode } from "@/lib/sorting";
 import { publicImageUrl } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 import type { Certification } from "./types";
@@ -41,14 +42,15 @@ type CertificationRow = {
   written_date: string;
 };
 
-/** 작성일 최신순 */
+/** 관리자가 고른 정렬 방식(최신순·오래된순·직접 지정) */
 export const getCertifications = cache(async (): Promise<Certification[]> => {
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from("company_certifications")
-    .select("id, category, title, content, image_path, written_date")
-    .order("written_date", { ascending: false })
-    .order("created_at", { ascending: false });
+  const mode = await getSortMode("certifications");
+  const { data, error } = await applySort(
+    supabase.from("company_certifications").select("id, category, title, content, image_path, written_date"),
+    "certifications",
+    mode,
+  );
   if (error) {
     console.error("[certifications] 목록 조회 실패", error.message);
     return [];

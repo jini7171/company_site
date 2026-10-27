@@ -3,8 +3,10 @@ import Link from "next/link";
 import { deleteProject, saveProject } from "@/app/admin/actions";
 import { ConfirmButton } from "@/components/admin/ConfirmButton";
 import { Badge, Card, Check, EmptyRow, Field, ImageField, PageHeader, ResultBanner, inputCls, primaryBtn, secondaryBtn, td, th } from "@/components/admin/ui";
+import { MoveButtons, SortControls } from "@/components/admin/SortControls";
 import { projectCategories, projectImageUrl } from "@/content/projects";
 import { requireAdmin } from "@/lib/admin";
+import { applySort, fetchSortMode } from "@/lib/sorting";
 
 type ProjectRow = {
   id: number;
@@ -26,13 +28,12 @@ export default async function AdminProjectsPage({ searchParams }: Props) {
   const { edit, msg, category } = await searchParams;
   const { db } = await requireAdmin();
 
-  let query = db
-    .from("company_projects")
-    .select(COLUMNS)
-    .order("written_date", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  const mode = await fetchSortMode(db, "projects");
+  let query = db.from("company_projects").select(COLUMNS);
   if (category) query = query.eq("category", category);
-  const projects = ((await query).data ?? []) as ProjectRow[];
+  const projects = ((await applySort(query, "projects", mode)).data ?? []) as ProjectRow[];
+  // 순서 화살표는 '전체' 목록에서만 보여줍니다. (분류 필터 중에는 이웃 글이 달라 헷갈리므로)
+  const canMove = mode === "manual" && !category;
 
   const editId = Number(edit) || null;
   const editing = editId
@@ -56,6 +57,7 @@ export default async function AdminProjectsPage({ searchParams }: Props) {
         }
       />
       <ResultBanner msg={msg} />
+      <SortControls board="projects" mode={mode} note={mode === "manual" ? "순서는 '전체' 목록에서 바꿀 수 있고, 분류 탭에서도 같은 순서로 보입니다." : undefined} />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_440px]">
         <Card
@@ -81,6 +83,7 @@ export default async function AdminProjectsPage({ searchParams }: Props) {
             <table className="w-full">
               <thead>
                 <tr>
+                  {canMove && <th className={th}>순서</th>}
                   <th className={th}>이미지</th>
                   <th className={th}>프로젝트명</th>
                   <th className={th}>구축기간</th>
@@ -93,8 +96,13 @@ export default async function AdminProjectsPage({ searchParams }: Props) {
               </thead>
               <tbody>
                 {projects.length ? (
-                  projects.map((p) => (
+                  projects.map((p, i) => (
                     <tr key={p.id} className={p.id === editId ? "bg-brand-50" : undefined}>
+                      {canMove && (
+                        <td className={`${td} whitespace-nowrap`}>
+                          <MoveButtons board="projects" id={p.id} title={p.title} isFirst={i === 0} isLast={i === projects.length - 1} />
+                        </td>
+                      )}
                       <td className={td}>
                         {/* eslint-disable-next-line @next/next/no-img-element -- 관리자 목록 썸네일 */}
                         <img src={projectImageUrl(p.image_path)} alt="" className="h-12 w-16 border border-line object-cover" />
@@ -126,7 +134,7 @@ export default async function AdminProjectsPage({ searchParams }: Props) {
                     </tr>
                   ))
                 ) : (
-                  <EmptyRow colSpan={6}>등록된 프로젝트가 없습니다.</EmptyRow>
+                  <EmptyRow colSpan={canMove ? 7 : 6}>등록된 프로젝트가 없습니다.</EmptyRow>
                 )}
               </tbody>
             </table>

@@ -89,7 +89,10 @@ grant execute on function public.company_is_admin() to anon, authenticated;
 -- 관리자 계정은 비밀번호가 Git에 남지 않도록 이 파일에서 만들지 않습니다.
 -- 새 환경에서는 SQL Editor에서 아래처럼 직접 실행하세요. ('<비밀번호>'를 바꿔서)
 --   insert into public.company_admin_users (username, password_hash)
---   values ('admin', extensions.crypt('<비밀번호>', extensions.gen_salt('bf')));
+--   values ('admin', extensions.crypt('<비밀번호>', extensions.gen_salt('bf', 10)));
+-- 비밀번호 변경:
+--   update public.company_admin_users set password_hash = extensions.crypt('<새 비밀번호>', extensions.gen_salt('bf', 10)) where username = 'admin';
+--   delete from public.company_admin_sessions;  -- 기존 로그인 모두 종료
 
 -- 게시판: 관리자는 비공개 글 포함 전체 관리
 drop policy if exists "admin manages board posts" on public.company_board_posts;

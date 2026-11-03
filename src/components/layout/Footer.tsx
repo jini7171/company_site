@@ -11,7 +11,7 @@ export function Footer() {
       <div className="container max-w-content">
         <div className="grid gap-12 py-16 lg:grid-cols-12">
           <div className="lg:col-span-4">
-            <Logo />
+            <Logo className="h-11" />
             <p className="mt-5 max-w-[320px] text-[15px] leading-relaxed text-muted">
               {siteConfig.foundedYear}년부터 축적해온 경험으로
               <br />

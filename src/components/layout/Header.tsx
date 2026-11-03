@@ -90,7 +90,7 @@ export function Header() {
       </a>
 
       <div className="container flex h-full max-w-content items-center justify-between gap-8">
-        <Logo />
+        <Logo priority />
 
         <nav aria-label="주요 메뉴" className="hidden h-full lg:block">
           <ul className="flex h-full items-center gap-1">
